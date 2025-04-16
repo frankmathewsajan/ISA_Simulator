@@ -1,4 +1,5 @@
 from memory import parse_hex_string
+from instructions import INSTRUCTION_HANDLERS
 
 GENERAL_REG = ["AX", "BX", "CX", "DX"]
 INDEX_REGS = ["SI", "DI", "BP", "SP"]
@@ -14,11 +15,21 @@ class CPU:
         self.SS = 0x0  # Stack Segment
         self.ES = 0x0  # Extra Segment
 
-        # General-purpose registers (16-bit)
+        # 16-bit general-purpose registers
         self.AX = 0x0
         self.BX = 0x0
         self.CX = 0x0
         self.DX = 0x0
+
+        # 8-bit register parts (high and low)
+        self.AH = 0x0  # High byte of AX
+        self.AL = 0x0  # Low byte of AX
+        self.BH = 0x0  # High byte of BX
+        self.BL = 0x0  # Low byte of BX
+        self.CH = 0x0  # High byte of CX
+        self.CL = 0x0  # Low byte of CX
+        self.DH = 0x0  # High byte of DX
+        self.DL = 0x0  # Low byte of DX
 
         # Index registers (16-bit)
         self.SI = 0x0  # Source Index
@@ -28,144 +39,101 @@ class CPU:
 
         # Flags register (16-bit)
         self.ZF = 0  # Zero Flag
+        self.CF = 0  # Carry Flag
+        self.SF = 0  # Sign Flag
+        self.OF = 0  # Overflow Flag
 
         self.IP = 0x0  # Instruction Pointer
+
+        # Initialize instruction handlers
+        self.instruction_handlers = {
+            name: handler(self) for name, handler in INSTRUCTION_HANDLERS.items()
+        }
 
     def calculate_physical_address(self, segment, offset):
         """Calculate the physical address from segment and offset."""
         return (segment << 4) + offset
 
-    def execute_instruction(self, instruction, operands, instruction_index=None):
-        """Execute an instruction (for example MOV, ADD, etc.)."""
-        print(f"Executing: {instruction} {operands}")  # For debugging
+    def get_register_value(self, reg):
+        """Get the value of a register by name."""
+        if reg in ["AX", "BX", "CX", "DX", "SI", "DI", "BP", "SP"]:
+            return getattr(self, reg)
+        elif reg in ["CS", "DS", "SS", "ES"]:
+            return getattr(self, reg)
+        elif reg in ["AH", "AL", "BH", "BL", "CH", "CL", "DH", "DL"]:
+            return getattr(self, reg)
+        raise ValueError(f"Unknown register: {reg}")
 
-        if instruction == "MOV":
-            dest, src = operands
-            # Convert src to integer if it's in hexadecimal format or decimal
-            if src.startswith('0x'):
-                src_value = int(src, 16)
-            elif src.startswith('['):
-                address_str = src[1:-1]
-                if address_str in INDEX_REGS:
-                    address_str = getattr(self, address_str)
-                address = parse_hex_string(address_str)
-                src_value = self.memory.read(address)
-            elif src.endswith('H'):
-                src_value = int(src[:-1], 16)  # Hexadecimal value
-            elif src in GENERAL_REG:  # Check if src is a register
-                src_value = getattr(self, src)  # Get the value of the register
-            else:
-                src_value = int(src)  # Treat as immediate value
-
-            # Handle destination (dest) as either a register or memory
-            if dest in GENERAL_REG:  # If destination is a register
-                setattr(self, dest, src_value)  # Update register with src_value
-            elif dest in INDEX_REGS:  # Index registers
-                setattr(self, dest, src_value)
-            elif dest.startswith("["):  # Memory operation
-                # Strip brackets and parse 8086-style hex like 2000H
-                address_str = dest[1:-1]
-                if address_str in INDEX_REGS:
-                    address_str = getattr(self, address_str)
-                address = parse_hex_string(address_str)
-
-                self.memory.write(address, src_value)
-
-            else:
-                raise ValueError(f"Unknown destination operand: {dest}")
-
-        elif instruction == "ADD":
-            dest, src = operands
-
-            # Convert operands to integers (registers or immediate values)
-            if src.startswith('0x'):
-                src_value = int(src, 16)
-            elif src in GENERAL_REG:  # Check if src is a register
-                src_value = getattr(self, src)  # Get the value of the register
-            else:
-                src_value = int(src)  # Treat as immediate value
-
-            if dest in GENERAL_REG:  # Register operand
-                setattr(self, dest, getattr(self, dest) + src_value)
-            elif dest.startswith("["):  # Memory operand
-                address = int(dest[1:-1], 16)  # Memory address in hex
-                current_value = self.memory.read(address)
-                self.memory.write(address, current_value + src_value)
-            else:
-                raise ValueError(f"Unknown destination operand: {dest}")
-
-        elif instruction == "PUSH":
-            # For simplicity, we use the stack (SS) and the value in AX for push
-            self.SS -= 2  # Stack grows downward
-            address = self.calculate_physical_address(self.SS, 0)
-            self.memory.write(address, self.AX)
-
-        elif instruction == "POP":
-            # Pop value from stack
-            address = self.calculate_physical_address(self.SS, 0)
-            self.AX = self.memory.read(address)
-            self.SS += 2  # Stack shrinks upwards
-
-        elif instruction in ("DEC", "INC"):
-            k = 1 if instruction == "INC" else -1
-            dest = operands[0]
-            if isinstance(dest, str):  # Register
-                setattr(self, dest, getattr(self, dest) + k)
-            else:  # Memory Address (handling as tuple of segment and offset)
-                segment, offset = dest
-                address = self.calculate_physical_address(segment, offset)
-                current_value = self.memory.read(address)
-                self.memory.write(address, current_value + k)
-
-        elif instruction == "JNZ":
-            label = operands[0]
-            # Check ZF to decide the jump
-            if self.ZF != 0:
-                # You would handle label jumps here (for simplicity, just printing label)
-                print(f"Jumping to label: {label}")
-            else:
-                print("Not jumping, CX is zero.")
-        elif instruction == "JMP":
-            label = operands[0]
-            # Handle unconditional jump
-            print(f"Jumping to label: {label}")
-        elif instruction == "label":
-            print("Uff brother", operands[0])
-        elif instruction == "CMP":
-            dest, src = operands
-
-            # Get dest value
-            if dest in GENERAL_REG:
-                dest_value = getattr(self, dest)
-            elif dest.startswith("["):
-                address = parse_hex_string(dest[1:-1])
-                dest_value = self.memory.read(address)
-            else:
-                dest_value = int(dest)
-
-            # Get src value
-            if src in GENERAL_REG:
-                src_value = getattr(self, src)
-            elif src.startswith("["):
-                address = parse_hex_string(src[1:-1])
-                src_value = self.memory.read(address)
-            elif src.startswith('0x'):
-                src_value = int(src, 16)
-            else:
-                src_value = int(src)
-
-            # Set Zero Flag based on the comparison
-            self.ZF = int(dest_value == src_value)
-
-        elif instruction == "LOOP":
-            label = operands[0]
-            # Decrement CX (loop counter)
-            self.CX -= 1
-            # If CX is not zero, jump to the label
-            if self.CX != 0:
-                print(f"Jumping to label: {label}")
-            else:
-                print("Loop completed, CX is zero.")
-
+    def set_register_value(self, reg, value):
+        """Set the value of a register by name."""
+        if reg in ["AX", "BX", "CX", "DX", "SI", "DI", "BP", "SP"]:
+            setattr(self, reg, value & 0xFFFF)  # Ensure 16-bit value
+            # Update 8-bit parts for AX, BX, CX, DX
+            if reg == "AX":
+                self.AH = (value >> 8) & 0xFF
+                self.AL = value & 0xFF
+            elif reg == "BX":
+                self.BH = (value >> 8) & 0xFF
+                self.BL = value & 0xFF
+            elif reg == "CX":
+                self.CH = (value >> 8) & 0xFF
+                self.CL = value & 0xFF
+            elif reg == "DX":
+                self.DH = (value >> 8) & 0xFF
+                self.DL = value & 0xFF
+        elif reg in ["CS", "DS", "SS", "ES"]:
+            setattr(self, reg, value & 0xFFFF)
+        elif reg in ["AH", "AL", "BH", "BL", "CH", "CL", "DH", "DL"]:
+            setattr(self, reg, value & 0xFF)  # Ensure 8-bit value
+            # Update 16-bit register if needed
+            if reg in ["AH", "AL"]:
+                self.AX = (self.AH << 8) | self.AL
+            elif reg in ["BH", "BL"]:
+                self.BX = (self.BH << 8) | self.BL
+            elif reg in ["CH", "CL"]:
+                self.CX = (self.CH << 8) | self.CL
+            elif reg in ["DH", "DL"]:
+                self.DX = (self.DH << 8) | self.DL
         else:
+            raise ValueError(f"Unknown register: {reg}")
+
+    def parse_operand(self, operand):
+        """Parse an operand into its value, handling registers, memory, and immediate values."""
+        if operand.startswith('[') and operand.endswith(']'):
+            # Memory reference
+            address_expr = operand[1:-1]
+            if '+' in address_expr:
+                base, offset = address_expr.split('+')
+                base = base.strip()
+                offset = offset.strip()
+                if base in ["BX", "BP", "SI", "DI"]:
+                    base_value = self.get_register_value(base)
+                    if offset.isdigit():
+                        address = base_value + int(offset)
+                    else:
+                        address = base_value + self.get_register_value(offset)
+                else:
+                    raise ValueError(f"Invalid base register in memory reference: {base}")
+            else:
+                if address_expr in ["BX", "BP", "SI", "DI"]:
+                    address = self.get_register_value(address_expr)
+                else:
+                    address = parse_hex_string(address_expr)
+            return self.memory.read(address)
+        elif operand in ["AX", "BX", "CX", "DX", "SI", "DI", "BP", "SP", "CS", "DS", "SS", "ES"]:
+            return self.get_register_value(operand)
+        elif operand.startswith('0x'):
+            return int(operand, 16)
+        elif operand.endswith('H'):
+            return int(operand[:-1], 16)
+        else:
+            return int(operand)
+
+    def execute_instruction(self, instruction, operands, instruction_index=None):
+        """Execute an instruction using the appropriate handler."""
+        instruction = instruction.upper()
+        if instruction not in self.instruction_handlers:
             raise ValueError(f"Unknown instruction: {instruction}")
+        
+        handler = self.instruction_handlers[instruction]
+        return handler.execute(operands)

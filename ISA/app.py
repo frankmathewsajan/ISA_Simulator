@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS  # New import
+from flask_cors import CORS
 from asm_compiler import COMPILE_ASM
+
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
@@ -13,15 +14,37 @@ def handle_request():
 
         # Extract the code from the request
         code = data.get('code', '')
-        compiled_code = COMPILE_ASM(code)
-        # Return a JSON response with the output field
+        if not code:
+            return jsonify({
+                'error': 'No code provided',
+                'cpu_state': None,
+                'memory': None
+            }), 400
+
+        # Compile and execute the assembly code
+        result = COMPILE_ASM(code)
+
+        # Check if there was an error during execution
+        if 'error' in result:
+            return jsonify({
+                'error': result['error'],
+                'cpu_state': result['cpu_state'],
+                'memory': result['memory']
+            }), 400
+
+        # Return successful execution results
         return jsonify({
-            'output': f'{compiled_code}'
+            'error': None,
+            'cpu_state': result['cpu_state'],
+            'memory': result['memory']
         })
+
     except Exception as e:
         return jsonify({
-            'output': f'Error processing request: {str(e)}'
-        }), 400
+            'error': f'Error processing request: {str(e)}',
+            'cpu_state': None,
+            'memory': None
+        }), 500
 
 
 if __name__ == '__main__':
