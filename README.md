@@ -1,6 +1,6 @@
 # 🔧 8086 ISA Simulator
 
-This is a lightweight Intel 8086 simulator built with 🔥 Flask (backend) and ⚛️ React (frontend). It supports:
+This lightweight Intel 8086 simulator is built with Flask (backend) and React + Vite (frontend). It supports:
 
 - Instruction parsing (MOV, ADD, SUB, CMP, PUSH, POP, JMP, JNC, JC, etc.)
 - Flag manipulation (ZF, CF, SF, OF)
@@ -8,7 +8,7 @@ This is a lightweight Intel 8086 simulator built with 🔥 Flask (backend) and �
 - Stack operations
 - Manual memory addressing via [addr] / [BX] / [SI]
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Backend
@@ -22,14 +22,14 @@ npm install
 npm run dev
 ```
 
-## 🧠 What it Emulates
+## What it Emulates
 
 - 16-bit general purpose registers (AX, BX, CX, DX)
 - Segment & index registers (CS, DS, SS, SI, DI)
 - Byte-addressable memory (manual 16-bit support)
 - No AL, AH (only full 16-bit register support)
 
-## 🛠️ Example Program
+## Example Program
 
 ```asm
 MOV AX, 0x1234
