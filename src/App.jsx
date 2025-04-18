@@ -34,6 +34,8 @@ const monacoTheme = {
 function App() {
     const [code, setCode] = useState(initialCode);
     const [output, setOutput] = useState('');
+    const [cpuState, setCpuState] = useState(null);
+    const [memory, setMemory] = useState(null);
 
     const handleEditorChange = (value) => {
         if (value) setCode(value);
@@ -50,7 +52,7 @@ function App() {
                 },
                 body: JSON.stringify({code}),
             });
-
+            
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
@@ -58,53 +60,187 @@ function App() {
             const result = await response.json();
             console.log('Backend Response:', result);
 
-            let output = result.output;
-
-            // If the output is a string that looks like an array, fix the quotes and parse it
-            if (typeof output === 'string') {
-                // Replace single quotes with double quotes for valid JSON
-                const fixedOutput = output.replace(/'/g, '"');
-
-                try {
-                    // Try to parse the corrected string into an actual array
-                    output = JSON.parse(fixedOutput);
-                } catch (error) {
-                    setOutput(`Error parsing output: ${error.message}`);
-                    return;
-                }
+            if (result.error) {
+                setOutput(`
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
+                        <div class="font-medium mb-1">Error:</div>
+                        <pre class="whitespace-pre-wrap">${result.error}</pre>
+                    </div>
+                `);
+                return;
             }
 
-            // Now, handle output if it's an array
-            if (Array.isArray(output)) {
-                const formattedOutput = formatOutput(output);
-                setOutput(formattedOutput);
-            } else {
-                setOutput(`Error: Expected an array, but got: ${typeof output}`);
-            }
+            // Update CPU state and memory
+            setCpuState(result.cpu_state);
+            setMemory(result.memory);
+
+            // Format the output
+            const formattedOutput = formatOutput(code, result);
+            setOutput(formattedOutput);
         } catch (error) {
             console.error('Error executing code:', error);
             setOutput(`Error: ${error.message || 'Failed to execute code'}`);
         }
     };
 
+    const formatOutput = (code, result) => {
+        const sections = [];
+    
+        // Code section with light terminal styling
+        sections.push(`
+            <div class="mb-6 bg-gray-50 p-4 rounded-lg text-gray-800 font-mono border">
+                <div class="flex items-center mb-2 text-xs text-gray-500">
+                    <span>$ assembly_execution.asm</span>
+                </div>
+                <pre class="font-mono">${code}</pre>
+            </div>
+        `);
+    
+        if (result.cpu_state) {
+            sections.push(`
+                <div class="bg-white p-4 rounded-lg mb-6 border">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- First Row: General Purpose Registers and Flags -->
+                        <div class="col-span-1">
+                            <table class="w-full border-collapse bg-gray-50 rounded-lg overflow-hidden">
+                                <thead>
+                                    <tr class="bg-blue-50">
+                                        <th class="p-3 text-blue-700 font-mono text-left" colspan="4">General Purpose Registers</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-gray-700">
+                                    <tr>
+                                        <td class="p-3 border-t">AX: 0x${result.cpu_state.AX?.toString(16).padStart(4, '0') || '0000'}</td>
+                                        <td class="p-3 border-t">BX: 0x${result.cpu_state.BX?.toString(16).padStart(4, '0') || '0000'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 border-t">CX: 0x${result.cpu_state.CX?.toString(16).padStart(4, '0') || '0000'}</td>
+                                        <td class="p-3 border-t">DX: 0x${result.cpu_state.DX?.toString(16).padStart(4, '0') || '0000'}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
-    const formatOutput = (output) => {
-        // Check if output is an array before applying .map()
-        if (Array.isArray(output)) {
-            const formattedCode = output.map(instruction => {
-                return `${instruction.raw}`;
-            }).join('\n');
+                        <div class="col-span-1">
+                            <table class="w-full border-collapse bg-gray-50 rounded-lg overflow-hidden">
+                                <thead>
+                                    <tr class="bg-red-50">
+                                        <th class="p-3 text-red-700 font-mono text-left" colspan="4">CPU Flags</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="p-3 border-t">
+                                            <div class="flex items-center gap-2">
+                                                <div class="${result.cpu_state.ZF ? 'bg-green-500' : 'bg-gray-300'} w-3 h-3 rounded-full"></div>
+                                                <span class="text-gray-700">ZF</span>
+                                            </div>
+                                        </td>
+                                        <td class="p-3 border-t">
+                                            <div class="flex items-center gap-2">
+                                                <div class="${result.cpu_state.CF ? 'bg-green-500' : 'bg-gray-300'} w-3 h-3 rounded-full"></div>
+                                                <span class="text-gray-700">CF</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 border-t">
+                                            <div class="flex items-center gap-2">
+                                                <div class="${result.cpu_state.SF ? 'bg-green-500' : 'bg-gray-300'} w-3 h-3 rounded-full"></div>
+                                                <span class="text-gray-700">SF</span>
+                                            </div>
+                                        </td>
+                                        <td class="p-3 border-t">
+                                            <div class="flex items-center gap-2">
+                                                <div class="${result.cpu_state.OF ? 'bg-green-500' : 'bg-gray-300'} w-3 h-3 rounded-full"></div>
+                                                <span class="text-gray-700">OF</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
-            return `\`\`\`assembly\n${formattedCode}\n\`\`\``;
-        } else {
-            return 'No valid output format received';
+                        <!-- Second Row: Segment and Index Registers -->
+                        <div class="col-span-1">
+                            <table class="w-full border-collapse bg-gray-50 rounded-lg overflow-hidden">
+                                <thead>
+                                    <tr class="bg-purple-50">
+                                        <th class="p-3 text-purple-700 font-mono text-left" colspan="2">Segment Registers</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-gray-700">
+                                    <tr>
+                                        <td class="p-2 border-t">CS: 0x${result.cpu_state.CS?.toString(16).padStart(4, '0') || '0000'}</td>
+                                        <td class="p-2 border-t">DS: 0x${result.cpu_state.DS?.toString(16).padStart(4, '0') || '0000'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-2 border-t">SS: 0x${result.cpu_state.SS?.toString(16).padStart(4, '0') || '0000'}</td>
+                                        <td class="p-2 border-t">ES: 0x${result.cpu_state.ES?.toString(16).padStart(4, '0') || '0000'}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="col-span-1">
+                            <table class="w-full border-collapse bg-gray-50 rounded-lg overflow-hidden">
+                                <thead>
+                                    <tr class="bg-cyan-50">
+                                        <th class="p-3 text-cyan-700 font-mono text-left" colspan="2">Index Registers</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-gray-700">
+                                    <tr>
+                                        <td class="p-2 border-t">SI: 0x${result.cpu_state.SI?.toString(16).padStart(4, '0') || '0000'}</td>
+                                        <td class="p-2 border-t">DI: 0x${result.cpu_state.DI?.toString(16).padStart(4, '0') || '0000'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-2 border-t">BP: 0x${result.cpu_state.BP?.toString(16).padStart(4, '0') || '0000'}</td>
+                                        <td class="p-2 border-t">SP: 0x${result.cpu_state.SP?.toString(16).padStart(4, '0') || '0000'}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `);
         }
+    
+        if (result.memory) {
+            sections.push(`
+                <div class="bg-white p-4 rounded-lg border">
+                    <table class="w-full border-collapse bg-gray-50 rounded-lg overflow-hidden">
+                        <thead>
+                            <tr class="bg-amber-50">
+                                <th class="p-3 text-amber-700 font-mono text-left" colspan="2">Memory Monitor</th>
+                            </tr>
+                            <tr class="bg-gray-100">
+                                <th class="p-2 text-gray-600 text-left">Address</th>
+                                <th class="p-2 text-gray-600 text-left">Value</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-gray-700">
+                            ${Object.entries(result.memory)
+                                .map(([address, value]) => `
+                                    <tr>
+                                        <td class="p-2 border-t">${address}</td>
+                                        <td class="p-2 border-t">0x${value.toString(16).padStart(4, '0')}</td>
+                                    </tr>
+                                `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `);
+        }
+    
+        return sections.join('');
     };
-
 
     const handleReset = () => {
         setCode(initialCode);
         setOutput('');
+        setCpuState(null);
+        setMemory(null);
     };
 
     return (
@@ -121,8 +257,8 @@ function App() {
                         </p>
                     </header>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                        <div className="space-y-4 lg:col-span-2">
                             <div className="flex items-center justify-between">
                                 <h2 className="text-2xl font-medium">Editor</h2>
                                 <div className="flex gap-3">
@@ -179,14 +315,12 @@ function App() {
                             </div>
                         </div>
 
-                        <div className="space-y-4">
-                            <h2 className="text-2xl font-medium">Output</h2>
+                        <div className="space-y-4 lg:col-span-3">
+                            <h2 className="text-2xl font-medium">CPU Monitor</h2>
                             <div
-                                className="h-[600px] bg-secondary/50 rounded-lg p-6 font-mono text-sm overflow-auto border shadow-sm"
-                                style={{whiteSpace: 'pre-wrap', wordWrap: 'break-word'}}
-                            >
-                                <code>{output || 'Program output will appear here...'}</code>
-                            </div>
+                                className="h-[600px] bg-white rounded-lg p-6 font-mono text-sm overflow-auto border shadow-sm"
+                                dangerouslySetInnerHTML={{ __html: output || '<div class="text-gray-400">CPU monitor initializing...</div>' }}
+                            />
                         </div>
                     </div>
                 </div>

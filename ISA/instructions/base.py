@@ -1,3 +1,4 @@
+from memory import parse_hex_string
 class BaseInstruction:
     """Base class for all instruction handlers."""
     

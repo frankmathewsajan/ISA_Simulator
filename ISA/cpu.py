@@ -21,15 +21,6 @@ class CPU:
         self.CX = 0x0
         self.DX = 0x0
 
-        # 8-bit register parts (high and low)
-        self.AH = 0x0  # High byte of AX
-        self.AL = 0x0  # Low byte of AX
-        self.BH = 0x0  # High byte of BX
-        self.BL = 0x0  # Low byte of BX
-        self.CH = 0x0  # High byte of CX
-        self.CL = 0x0  # Low byte of CX
-        self.DH = 0x0  # High byte of DX
-        self.DL = 0x0  # Low byte of DX
 
         # Index registers (16-bit)
         self.SI = 0x0  # Source Index
@@ -83,17 +74,7 @@ class CPU:
                 self.DL = value & 0xFF
         elif reg in ["CS", "DS", "SS", "ES"]:
             setattr(self, reg, value & 0xFFFF)
-        elif reg in ["AH", "AL", "BH", "BL", "CH", "CL", "DH", "DL"]:
-            setattr(self, reg, value & 0xFF)  # Ensure 8-bit value
-            # Update 16-bit register if needed
-            if reg in ["AH", "AL"]:
-                self.AX = (self.AH << 8) | self.AL
-            elif reg in ["BH", "BL"]:
-                self.BX = (self.BH << 8) | self.BL
-            elif reg in ["CH", "CL"]:
-                self.CX = (self.CH << 8) | self.CL
-            elif reg in ["DH", "DL"]:
-                self.DX = (self.DH << 8) | self.DL
+    
         else:
             raise ValueError(f"Unknown register: {reg}")
 

@@ -1,13 +1,7 @@
 class Memory:
     def __init__(self):
         # Initialize 1MB memory space (1024 * 1024 bytes)
-        self.memory = [0] * (1024 * 1024)
-        self.segments = {
-            'CS': 0x0,  # Code Segment
-            'DS': 0x0,  # Data Segment
-            'SS': 0x0,  # Stack Segment
-            'ES': 0x0   # Extra Segment
-        }
+        self.memory = bytearray(1024 * 1024)
 
     def read(self, address):
         """Read from memory at a given physical address."""

@@ -98,7 +98,7 @@ def EXECUTOR(instructions, label_map):
     Executes the list of parsed instructions with support for jumps and improved error handling.
     """
     ip = 0  # instruction pointer
-    max_instructions = 10000  # Prevent infinite loops
+    max_instructions = 100  # Prevent infinite loops
     instruction_count = 0
 
     while ip < len(instructions) and instruction_count < max_instructions:

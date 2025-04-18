@@ -6,7 +6,7 @@ class PushInstruction(BaseInstruction):
     def execute(self, operands):
         reg = operands[0]
         value = self.cpu.get_register_value(reg)
-        self.cpu.SP -= 2
+        self.cpu.SP = (self.cpu.SP - 2) & 0xFFFF
         address = self.cpu.calculate_physical_address(self.cpu.SS, self.cpu.SP)
         self.cpu.memory.write(address, value)
 
@@ -19,4 +19,4 @@ class PopInstruction(BaseInstruction):
         address = self.cpu.calculate_physical_address(self.cpu.SS, self.cpu.SP)
         value = self.cpu.memory.read(address)
         self.cpu.set_register_value(reg, value)
-        self.cpu.SP += 2 
+        self.cpu.SP = (self.cpu.SP + 2) & 0xFFFF

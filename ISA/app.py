@@ -30,7 +30,7 @@ def handle_request():
                 'error': result['error'],
                 'cpu_state': result['cpu_state'],
                 'memory': result['memory']
-            }), 400
+            })
 
         # Return successful execution results
         return jsonify({

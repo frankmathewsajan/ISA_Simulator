@@ -1,4 +1,5 @@
 from .base import BaseInstruction
+from memory import parse_hex_string
 
 class MovInstruction(BaseInstruction):
     """Handler for MOV instruction."""
@@ -25,6 +26,7 @@ class MovInstruction(BaseInstruction):
             else:
                 if address_expr in ["BX", "BP", "SI", "DI"]:
                     address = self.cpu.get_register_value(address_expr)
+                    print(f"Address: {address}")
                 else:
                     address = parse_hex_string(address_expr)
             self.cpu.memory.write(address, src_value)
